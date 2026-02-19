@@ -10,13 +10,15 @@ jobs:
   run_analysis:
     runs-on: ubuntu-latest
     steps:
-      - name: Kodları Çek
+      - name: Kodlari Cek
         uses: actions/checkout@v4
       - name: Python Kur
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-      - name: Kütüphaneleri Yükle
-        run: pip install pandas yfinance requests pandas-ta
-      - name: Robotu Çalıştır
+          python-version: '3.10'
+      - name: Kutuphaneleri Yukle
+        run: |
+          pip install pandas yfinance requests numpy
+          pip install git+https://github.com/twopirllc/pandas-ta.git@development
+      - name: Robotu Atesle
         run: python ana_kontrol.py
