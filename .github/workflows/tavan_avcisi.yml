@@ -19,6 +19,8 @@ jobs:
       - name: Kutuphaneleri Yukle
         run: |
           pip install pandas yfinance requests numpy
-          pip install git+https://github.com/twopirllc/pandas-ta.git@development
+          pip install --upgrade pip
+          # Pandas-ta için en garanti kurulum yöntemi:
+          pip install https://github.com/twopirllc/pandas-ta/archive/refs/heads/development.zip
       - name: Robotu Atesle
         run: python ana_kontrol.py
