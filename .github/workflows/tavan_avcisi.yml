@@ -12,14 +12,17 @@ jobs:
     steps:
       - name: Kodlari Cek
         uses: actions/checkout@v4
+
       - name: Python Kur
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
+
       - name: Kutuphaneleri Yukle
         run: |
-          pip install pandas yfinance requests numpy
-          # Kaynağından doğrudan kurulum:
-          pip install https://github.com/twopirllc/pandas-ta/archive/master.zip
+          python -m pip install --upgrade pip
+          # 🛡️ SENIOR DÜZELTME: Kırık link kaldırıldı, requirements üzerinden mühürlü kurulum yapılıyor.
+          pip install -r requirements.txt
+
       - name: Robotu Atesle
         run: python ana_kontrol.py
