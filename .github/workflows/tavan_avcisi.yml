@@ -2,9 +2,13 @@ name: Tavan Avcisi Otomasyonu
 
 on:
   schedule:
-    - cron: '15 07 * * 1-5'  # TR Saati 10:15
-    - cron: '30 14 * * 1-5'  # TR Saati 17:30
-  workflow_dispatch:
+    # GitHub UTC saatini kullanır. TR saati için saatten 3 çıkarıyoruz.
+    - cron: '15 07 * * 1-5'  # 🇹🇷 TR: 10:15 (Sabah Açılış İvmesi)
+    - cron: '30 09 * * 1-5'  # 🇹🇷 TR: 12:30 (Öğle Arası - Mod Değişimi)
+    - cron: '30 14 * * 1-5'  # 🇹🇷 TR: 17:30 (Kapanış Öncesi Son Fırsatlar)
+    - cron: '20 15 * * 1-5'  # 🇹🇷 TR: 18:20 (Gün Sonu Özeti ve Yarın Hazırlığı)
+    
+  workflow_dispatch: # Manuel çalıştırma butonu
 
 jobs:
   run_analysis:
@@ -21,7 +25,6 @@ jobs:
       - name: Kutuphaneleri Yukle
         run: |
           python -m pip install --upgrade pip
-          # 🛡️ SENIOR DÜZELTME: Kırık link kaldırıldı, requirements üzerinden mühürlü kurulum yapılıyor.
           pip install -r requirements.txt
 
       - name: Robotu Atesle
