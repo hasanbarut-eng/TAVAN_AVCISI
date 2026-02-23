@@ -1,37 +1,42 @@
 import requests
+import logging
 
 class BildirimServisi:
     def __init__(self, token, chat_id):
         self.url = f"https://api.telegram.org/bot{token}/sendMessage"
         self.chat_id = chat_id
 
-    def rapor_gonder(self, adaylar, riskli_olanlar):
-        # 1. Pozitif Sinyaller
-        if adaylar:
-            adaylar.sort(key=lambda x: x['ai_skor'], reverse=True)
-            for a in adaylar[:6]:
-                mesaj = (
-                    f"🚀 <b>{a['durum']} | #{a['sembol']}</b>\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"⚠️ <i>Yatırım tavsiyesi değildir.</i>\n\n"
-                    f"| 🛡️ SEMBOL | 💰 FİYAT | 📈 DEĞİŞİM | 📊 SKOR |\n"
-                    f"| :--- | :--- | :--- | :--- |\n"
-                    f"| <b>#{a['sembol']}</b> | {a['fiyat']} TL | %{a['degisim']} | <b>%{a['ai_skor']}</b> |\n\n"
-                    f"| 🔥 HACİM | 📉 PD/DD | 🛡️ DESTEK | 🎯 DİRENÇ |\n"
-                    f"| :--- | :--- | :--- | :--- |\n"
-                    f"| <b>{a['hacim_kat']}x</b> | {a['pddd']} | {a['destek']} | {a['direnc']} |\n\n"
-                    f"💡 <b>DERİN ANALİZ:</b>\n<i>{a['analiz']}</i>\n"
-                    f"━━━━━━━━━━━━━━━━━━━━"
-                )
-                self._gonder(mesaj)
+    def rapor_gonder(self, adaylar):
+        """
+        Sinyalleri eğitici bir dille ve stratejik seviyelerle Telegram'a mühürler.
+        """
+        for a in adaylar[:5]: # En kaliteli 5 sinyali gönder
+            mesaj = (
+                f"🚀 <b>TAVAN POTANSİYELİ | #{a['sembol']}</b>\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"💰 <b>Fiyat:</b> {a['fiyat']} TL | %{a['degisim']}\n"
+                f"🌟 <b>SERİ POTANSİYELİ:</b> {a['seri']}\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n\n"
+                f"📥 <b>STRATEJİK İŞLEM PLANI</b>\n"
+                f"• <b>Alım Aralığı:</b> {round(a['fiyat']*0.995, 2)} - {round(a['fiyat']*1.005, 2)} TL\n"
+                f"• <b>Kâr Al (Hedef):</b> {a['direnc']} TL\n"
+                f"• <b>Zarar Kes (Stop):</b> {a['destek']} TL\n\n"
+                f"🔍 <b>NEDEN BU HİSSEYİ SEÇTİM? (EĞİTİM)</b>\n"
+                f"<i>{a['analiz']}</i>\n\n"
+                f"📘 <b>KÜÇÜK BİR SÖZLÜK:</b>\n"
+                f"• <i>Tavan Adayı: Bugün %10 yükselme potansiyeli olan.</i>\n"
+                f"• <i>Tavan Serisi: Yükselişin birkaç gün sürme ihtimali.</i>\n"
+                f"• <i>Tavan-Taban Riski: Hacimsiz (sahte) yükselişlerdeki düşüş tehlikesi.</i>\n\n"
+                f"⚠️ <b>Yatırım Tavsiyesi Değildir.</b> Matematiksel analizdir.\n"
+                f"━━━━━━━━━━━━━━━━━━━━"
+            )
+            try:
+                requests.post(self.url, json={"chat_id": self.chat_id, "text": mesaj, "parse_mode": "HTML"}, timeout=10)
+            except Exception as e:
+                logging.error(f"❌ Telegram gönderim hatası: {e}")
 
-        # 2. Riskli Sinyaller (Haber Kalkanı)
-        if riskli_olanlar:
-            for r in riskli_olanlar:
-                r_mesaj = f"🚨 <b>KRİTİK RİSK UYARISI | #{r['sembol']}</b>\n━━━━━━━━━━━━━━━━━━━━\n{r['mesaj']}"
-                self._gonder(r_mesaj)
-
-    def _gonder(self, metin):
+    def hata_bildir(self, mesaj):
+        """Sistem hatalarını yöneticiye bildirir."""
         try:
-            requests.post(self.url, json={"chat_id": self.chat_id, "text": metin, "parse_mode": "HTML"})
+            requests.post(self.url, json={"chat_id": self.chat_id, "text": f"🚨 SİSTEM HATASI: {mesaj}"})
         except: pass
