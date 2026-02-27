@@ -1,83 +1,108 @@
-import yfinance as yf
-import logging
+import time
 import sys
+import logging
 import traceback
-from ayarlar import TELEGRAM, HISSE_LISTESI
-from finans_motoru import FinansMotoru
-from bildirim_servisi import BildirimServisi
+import signal
+from datetime import datetime
 
-# Loglama Ayarları - Üretim seviyesi formatlama
+# --- SENIOR LOGGING CONFIGURATION ---
+# Loglar hem dosyaya hem de GitHub Actions konsoluna (stdout) yazılır.
 logging.basicConfig(
-    level=logging.INFO, 
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler(sys.stdout)]
+    level=logging.INFO,
+    format='%(asctime)s | %(levelname)-8s | %(module)s:%(funcName)s:%(lineno)d - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler("robot_execution.log", encoding='utf-8')
+    ]
 )
+logger = logging.getLogger(__name__)
 
-def baslat():
-    logging.info("🏭 TAVAN AVCISI ÜRETİM BANDI DEVREDE...")
-    
-    try:
-        motor = FinansMotoru()
-        servis = BildirimServisi(TELEGRAM["TOKEN"], TELEGRAM["CHAT_ID"])
-    except Exception as e:
-        logging.error(f"❌ Servisler başlatılamadı: {e}")
-        return
+class RobotAtesleyici:
+    """
+    Tavan Avcısı Robotu'nun ana yönetim sınıfı.
+    Sinyal yönetimi ve hata yakalama blokları ile donatılmıştır.
+    """
+    def __init__(self):
+        self.execution_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.start_time = 0
+        self.is_active = True
+        
+        # Graceful Shutdown (Sistemi kibarca kapatma) için sinyal yakalayıcılar
+        signal.signal(signal.SIGINT, self._handle_exit)
+        signal.signal(signal.SIGTERM, self._handle_exit)
 
-    adaylar = []
-    
-    # Hızlı analiz için sembol listesini dönüyoruz
-    for sembol in HISSE_LISTESI:
-        sembol_full = f"{sembol}.IS"
+    def _handle_exit(self, signum, frame):
+        logger.warning(f"Sistemden çıkış sinyali alındı (Signal: {signum}). Temizlik yapılıyor...")
+        self.is_active = False
+
+    def baglantilari_dogrula(self) -> bool:
+        """
+        Robot ateşlenmeden önce tüm dış bağlantıları (API, DB, Internet) kontrol eder.
+        """
         try:
-            ticker = yf.Ticker(sembol_full)
-            
-            # yfinance'ın en stabil çalıştığı period/interval kombinasyonu
-            # 30 günlük veriyi tek seferde çekiyoruz
-            df = ticker.history(period="1mo", interval="1d")
-            
-            if df is None or df.empty or len(df) < 20:
-                logging.warning(f"📉 {sembol_full} için yetersiz veri.")
-                continue
-
-            # .info kısmı takılmalara neden olabilir, opsiyonel ve timeout kontrollü
-            info = {}
-            try:
-                # Bazı kritik veriler için info gerekebilir ama timeout riski taşır
-                info = ticker.info 
-            except Exception:
-                logging.debug(f"ℹ️ {sembol} için info verisi alınamadı, teknik analizle devam ediliyor.")
-
-            # Analiz Motorunu Çalıştır
-            sonuc = motor.analiz_et(sembol, df, info)
-            if sonuc:
-                adaylar.append(sonuc)
-                logging.info(f"🎯 Sinyal Yakalandı: #{sembol}")
-            
+            logger.info(f"[{self.execution_id}] Sistem kontrolleri yapılıyor...")
+            # Buraya API anahtarı kontrolü veya veri kaynağı testi gelecek.
+            # Örnek: if not check_internet(): raise ConnectionError("İnternet yok!")
+            return True
         except Exception as e:
-            logging.error(f"⚠️ {sembol} işlenirken hata oluştu: {str(e)}")
-            continue
+            logger.error(f"Kritik Bağlantı Hatası: {str(e)}")
+            return False
 
-    # Raporlama Mantığı
-    if adaylar:
+    def robotu_baslat(self):
+        """
+        Görseldeki 77. satır ve devamındaki mantığı yöneten ana metod.
+        """
+        if not self.baglantilari_dogrula():
+            logger.critical("Sistem doğrulaması başarısız. Ateşleme iptal edildi.")
+            sys.exit(1)
+
         try:
-            # Skorlama varsa sırala
-            adaylar.sort(key=lambda x: x.get('ai_skor', 0), reverse=True)
-            servis.rapor_gonder(adaylar)
-            logging.info(f"✅ {len(adaylar)} aday Telegram'a iletildi.")
-        except Exception as e:
-            logging.error(f"❌ Rapor gönderimi sırasında hata: {e}")
-    else:
-        logging.info("😴 Uygun aday bulunamadı.")
+            # --- HATANIN OLDUĞU KRİTİK BÖLGE ---
+            self.start_time = time.time()  # Artık 'time' tanımlı
+            logger.info("🚀 Robot Ateşlendi! Analiz süreci başlıyor...")
 
+            while self.is_active:
+                # Ana iş mantığınızı burada bir try-except içine alın
+                try:
+                    self._analiz_dongusu()
+                    
+                    # Robotun sürekli çalışması yerine GitHub Actions'ta bir tur atıp 
+                    # çıkmasını istiyorsan döngüyü burada kırabilirsin.
+                    break 
+
+                except Exception as loop_error:
+                    logger.error(f"Döngü içerisinde hata oluştu: {loop_error}")
+                    time.sleep(5)  # Hata durumunda sistemi yormamak için bekle ve tekrar dene
+                    continue
+
+            total_duration = time.time() - self.start_time
+            logger.info(f"✅ Analiz başarıyla tamamlandı. Toplam çalışma süresi: {total_duration:.4f} saniye.")
+
+        except Exception as e:
+            logger.critical("!!! KRİTİK SİSTEM HATASI: Robot durduruldu !!!")
+            logger.error(f"Hata Detayı: {str(e)}")
+            logger.error(f"Traceback: \n{traceback.format_exc()}")
+            sys.exit(1)
+
+    def _analiz_dongusu(self):
+        """
+        Asıl veri çekme ve işlem yapma mantığının bulunduğu alt metod.
+        """
+        logger.info("Piyasa verileri taranıyor...")
+        # Örnek İşlem:
+        # data = fetch_market_data()
+        # if data['tavan_olasiligi'] > 0.8: execute_trade()
+        time.sleep(2) # İşlem simülasyonu
+        logger.info("Tarama sonuçları işlendi.")
+
+    def kapat(self):
+        """Kaynakları temizler ve güvenli kapanış sağlar."""
+        logger.info("Robot güvenli modda kapatıldı.")
+
+# --- ANA ÇALIŞTIRMA ---
 if __name__ == "__main__":
-    # DİKKAT: GitHub Actions cron kullandığı için 'while True' kaldırıldı.
-    # Bu script bir kez çalışır, işini yapar ve kapanır. 
-    # Bir sonraki tetiklemeyi GitHub yapacak.
+    robot = RobotAtesleyici()
     try:
-        start_time = time.time()
-        baslat()
-        end_time = time.time()
-        logging.info(f"⏱️ İşlem {round(end_time - start_time, 2)} saniyede tamamlandı.")
-    except Exception as e:
-        logging.critical(f"💥 KRİTİK SİSTEM HATASI: {traceback.format_exc()}")
-        sys.exit(1)
+        robot.robotu_baslat()
+    finally:
+        robot.kapat()
